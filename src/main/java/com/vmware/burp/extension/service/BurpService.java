@@ -8,10 +8,12 @@ package com.vmware.burp.extension.service;
 
 import burp.BurpExtender;
 import burp.IHttpRequestResponse;
+import burp.IParameter;
 import burp.IScanIssue;
 import burp.IScanQueueItem;
 import com.vmware.burp.extension.domain.Config;
 import com.vmware.burp.extension.domain.ConfigItem;
+import com.vmware.burp.extension.domain.Cookie;
 import com.vmware.burp.extension.domain.HttpMessage;
 import com.vmware.burp.extension.domain.ReportType;
 import com.vmware.burp.extension.domain.ScanIssue;
@@ -150,7 +152,7 @@ public class BurpService {
       return httpMessageList;
    }
 
-   public boolean scan(String baseUrl)
+   public boolean scan(String baseUrl, List<Cookie> cookieList)
          throws MalformedURLException {
       boolean inScope = isInScope(baseUrl);
       log.info("Total SiteMap size: {}", BurpExtender.getInstance().getCallbacks().getSiteMap("").length);
@@ -164,6 +166,13 @@ public class BurpService {
             if (url.toExternalForm().startsWith(baseUrl)) {
                boolean useHttps = url.getProtocol().equalsIgnoreCase("HTTPS");
                log.debug("Submitting Active Scan for the URL {}", url.toExternalForm());
+               
+               byte[] request = iHttpRequestResponse.getRequest();
+               for (Cookie cookie : cookieList) {
+                  IParameter cookieParam = BurpExtender.getInstance().getHelpers().buildParameter(cookie.getName(), cookie.getValue(), IParameter.PARAM_COOKIE);
+                  BurpExtender.getInstance().getHelpers().addParameter(request, cookieParam);
+               }
+               
                IScanQueueItem iScanQueueItem = BurpExtender.getInstance().getCallbacks()
                      .doActiveScan(url.getHost(), url.getPort(), useHttps,
                            iHttpRequestResponse.getRequest());
@@ -232,6 +241,11 @@ public class BurpService {
    public int getPercentageComplete() {
       log.info("Getting percentage complete.");
       return scans.getPercentageComplete();
+   }
+
+   public int getPercentageCompleteByUrlPrefix(String url) {
+      log.info("Getting percentage complete for URL prefix: " + url);
+      return scans.getPercentageCompleteByUrlPrefix(url);
    }
 
    public void sendToSpider(String baseUrl) throws MalformedURLException {

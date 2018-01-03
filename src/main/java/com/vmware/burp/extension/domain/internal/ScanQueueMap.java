@@ -74,4 +74,31 @@ public class ScanQueueMap {
       log.info("Scan Percent Complete: {}", percentComplete);
       return percentComplete;
    }
+
+   public int getPercentageCompleteByUrlPrefix(String url) {
+    if (map.keySet().size() == 0) {
+       log.info("Scan Queue is empty. Returning the Percent Complete as 100%.");
+       return 100;
+    }
+
+    int numberOfScans = 0;
+    int totalPercentCompletion = 0;
+    for (String mapUrl : map.keySet()) {
+       if (mapUrl.startsWith(url)) {
+         for (IScanQueueItem iScanQueueItem : getQueue(mapUrl)) {
+            numberOfScans++;
+            totalPercentCompletion += iScanQueueItem.getPercentageComplete();
+         }
+      }
+    }
+
+    if (numberOfScans == 0) {
+      log.info("No Scan Queue items found matching the provided URL prefix. Returning 100%.");
+      return 100;
+    }
+
+    int percentComplete = totalPercentCompletion / numberOfScans;
+    log.info("Scan Percent Complete: {}", percentComplete);
+    return percentComplete;
+ }
 }

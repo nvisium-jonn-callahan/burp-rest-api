@@ -9,6 +9,7 @@ package com.vmware.burp.extension.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vmware.burp.extension.domain.Config;
+import com.vmware.burp.extension.domain.Cookie;
 import com.vmware.burp.extension.domain.HttpMessageList;
 import com.vmware.burp.extension.domain.ReportType;
 import com.vmware.burp.extension.domain.ScanIssueList;
@@ -35,6 +36,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.File;
 import java.net.MalformedURLException;
+import java.util.List;
 
 import static org.springframework.web.bind.annotation.RequestMethod.*;
 
@@ -215,7 +217,8 @@ public class BurpController {
 
    @ApiOperation(value = "Send a base url to Burp Scanner to perform active scan", notes = "Scans through Burp Sitemap and sends all HTTP requests with url starting with baseUrl to Burp Scanner for active scan.")
    @ApiImplicitParams({
-         @ApiImplicitParam(name = "baseUrl", value = "Base Url to submit for Active scan.", required = true, dataType = "string", paramType = "query")
+         @ApiImplicitParam(name = "baseUrl", value = "Base Url to submit for Active scan.", required = true, dataType = "string", paramType = "query"),
+         @ApiImplicitParam(name = "cookieList", value = "Session cookies to leverage", required = false, dataType = "cookieList", paramType = "body")
    })
    @ApiResponses(value = {
          @ApiResponse(code = 200, message = "Success"),
@@ -224,12 +227,11 @@ public class BurpController {
          @ApiResponse(code = 500, message = "Failure")
    })
    @RequestMapping(method = POST, value = "/scanner/scans/active")
-   public void scan(@RequestParam(value = "baseUrl") String baseUrl)
+   public void scan(@RequestParam(value = "baseUrl") String baseUrl, @RequestBody List<Cookie> cookieList)
          throws MalformedURLException {
       if (StringUtils.isEmpty(baseUrl)) {
          throw new IllegalArgumentException("The 'baseUrl' parameter in payload must not be null or empty.");
       }
-
       boolean inScope = burp.isInScope(baseUrl);
       log.info("Is {} in Scope: {}", baseUrl, inScope);
       if (!inScope) {
@@ -237,7 +239,7 @@ public class BurpController {
          throw new IllegalStateException("The 'baseUrl' is NOT in scope. Set the 'baseUrl' scope to true before retry.");
       }
 
-      burp.scan(baseUrl);
+      burp.scan(baseUrl, cookieList);
    }
 
    @ApiOperation(value = "Deletes the active scan queue map from memory", notes = "Deletes the scan queue map from memory, not from Burp suite UI.")
@@ -290,15 +292,21 @@ public class BurpController {
       return burp.generateScanReport(urlPrefix, ReportType.valueOf(reportType));
    }
 
-   @ApiOperation(value = "Get the percentage completed for the scan queue items", notes = "Returns an aggregate of percentage completed for all the scan queue items.")
+   @ApiOperation(value = "Get the percentage completed for the scan queue items", notes = "Returns an aggregate of percentage completed for either all scan queue items or the scan queue items that match the provided URL prefix.")
+   /*@ApiImplicitParams({
+      @ApiImplicitParam(name = "urlPrefix", value = "Base Url to fetch the scan status for.", required = false, dataType = "string", paramType = "query")
+   }*/
    @ApiResponses(value = {
          @ApiResponse(code = 200, message = "Success", response = ScanProgress.class),
          @ApiResponse(code = 500, message = "Failure")
    })
    @RequestMapping(method = GET, value = "/scanner/status")
-   public ScanProgress percentComplete() {
+   public ScanProgress percentComplete(@RequestParam(required = false) String urlPrefix) {
       ScanProgress scanProgress = new ScanProgress();
-      scanProgress.setTotalScanPercentage(burp.getPercentageComplete());
+
+      if (urlPrefix == null) { scanProgress.setTotalScanPercentage(burp.getPercentageComplete()); }
+      else { scanProgress.setTotalScanPercentage(burp.getPercentageCompleteByUrlPrefix(urlPrefix)); }
+
       return scanProgress;
    }
 
